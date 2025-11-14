@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.1.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -40,6 +40,9 @@ dependencies:
   just_audio: ^0.9.36
   path_provider: ^2.1.1
   record: ^6.0.0
+  url_launcher: ^6.2.2
+  in_app_purchase: ^3.1.15
+  in_app_purchase_storekit: ^0.4.2
 
 dev_dependencies:
   flutter_test:
@@ -82,6 +85,9 @@ flutter:
     - assets/keya_me_2.webp
     - assets/keya_me_3.webp
     - assets/keya_me_4.webp
+    - assets/keya_me_vip.webp
+    - assets/keya_me_wallet.webp
+    - assets/keya_diamond.webp
     - assets/keya_logo.png
     - assets/tab/
     - assets/PerMarginCon/users_data.json
@@ -101,6 +107,7 @@ flutter:
     - assets/PerMarginCon/keya140/
     - assets/PerMarginCon/keya150/
     - assets/PerMarginCon/keya160/
+    
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

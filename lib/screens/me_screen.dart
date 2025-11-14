@@ -7,6 +7,8 @@ import '../theme/app_theme.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 import 'about_screen.dart';
+import 'keya_wallet_screen.dart';
+import 'keya_vip_screen.dart';
 
 class MeScreen extends StatefulWidget {
   const MeScreen({super.key});
@@ -51,7 +53,7 @@ class _MeScreenState extends State<MeScreen> {
         _avatarFileName = avatarFileName;
       });
 
-      // 加载头像路径
+      // Load avatar path
       await _loadAvatarPath();
     } catch (e) {
       debugPrint('Error loading profile data: $e');
@@ -83,7 +85,90 @@ class _MeScreenState extends State<MeScreen> {
     }
   }
 
+  Future<bool> _checkVipStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isVip = prefs.getBool('keyaIsVip') ?? false;
+    
+    if (!isVip) {
+      final expiryStr = prefs.getString('keyaVipExpiry');
+      if (expiryStr != null) {
+        final expiry = DateTime.tryParse(expiryStr);
+        if (expiry != null && expiry.isAfter(DateTime.now())) {
+          // VIP not expired
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Check if VIP is expired
+    final expiryStr = prefs.getString('keyaVipExpiry');
+    if (expiryStr != null) {
+      final expiry = DateTime.tryParse(expiryStr);
+      if (expiry != null && expiry.isBefore(DateTime.now())) {
+        // VIP expired
+        await prefs.setBool('keyaIsVip', false);
+        return false;
+      }
+    }
+    
+    return isVip;
+  }
+
+  Future<bool> _showVipRequiredDialog(String action) async {
+    final shouldGoToVip = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text(
+            'VIP Required',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'This feature requires Keya Premium membership.\n\nGo to VIP Center to subscribe?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Go to VIP',
+                style: TextStyle(color: AppTheme.primaryColor),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldGoToVip == true && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const VipScreen(),
+        ),
+      );
+    }
+
+    return shouldGoToVip == true;
+  }
+
   Future<void> _pickAvatar() async {
+    // Check VIP status before picking avatar
+    final isVip = await _checkVipStatus();
+    
+    if (!isVip) {
+      await _showVipRequiredDialog('modify avatar');
+      return;
+    }
+
     try {
       final XFile? picked = await _imagePicker.pickImage(
         source: ImageSource.gallery,
@@ -235,6 +320,12 @@ class _MeScreenState extends State<MeScreen> {
                 // Profile Header
                 _buildProfileHeader(),
                 const SizedBox(height: 32),
+                // VIP Club
+                _buildVIPCard(),
+                const SizedBox(height: 16),
+                // Wallet
+                _buildWalletCard(),
+                const SizedBox(height: 24),
                 // Common Functions
                 _buildCommonFunctions(),
                 const SizedBox(height: 32),
@@ -378,6 +469,98 @@ class _MeScreenState extends State<MeScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildVIPCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const VipScreen(),
+            ),
+          );
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.asset(
+            'assets/keya_me_vip.webp',
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.pink.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                ),
+                child: const Center(
+                  child: Text(
+                    'VIP Club',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWalletCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const WalletScreen(),
+            ),
+          );
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.asset(
+            'assets/keya_me_wallet.webp',
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                height: 60,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                ),
+                child: const Center(
+                  child: Text(
+                    'Wallet',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>baselineScopeInteraction</key>
+	<string>plateBesideChain</string>
+	<key>characterByLayer</key>
+	<string>segueViaChain</string>
+	<key>graphicStageShape</key>
+	<string>dropdownbuttonLikePrototype</string>
+</dict>
+</plist>

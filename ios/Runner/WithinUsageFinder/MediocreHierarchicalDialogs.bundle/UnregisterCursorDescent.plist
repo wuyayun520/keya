@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>graphPrototypeState</key>
+	<string>geometricAlphaBehavior</string>
+	<key>layoutChainContrast</key>
+	<string>inactiveTweenVelocity</string>
+	<key>nativeControllerFrequency</key>
+	<string>statefulThroughNumber</string>
+	<key>reusableResultAlignment</key>
+	<string>serviceOperationFormat</string>
+</dict>
+</plist>

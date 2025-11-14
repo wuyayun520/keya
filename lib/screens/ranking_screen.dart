@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_data.dart';
 import 'video_player_screen.dart';
+import 'keya_vip_screen.dart';
+import '../theme/app_theme.dart';
 
 class RankingScreen extends StatefulWidget {
   const RankingScreen({super.key});
@@ -15,8 +17,8 @@ class RankingScreen extends StatefulWidget {
 class _RankingScreenState extends State<RankingScreen> {
   List<UserData> _rankedUsers = [];
   bool _isLoading = true;
-  Map<String, bool> _likedUsers = {}; // 存储用户点赞状态
-  Map<String, int> _likeCounts = {}; // 存储用户点赞数量
+  Map<String, bool> _likedUsers = {}; // Store user like status
+  Map<String, int> _likeCounts = {}; // Store user like counts
 
   @override
   void initState() {
@@ -30,7 +32,7 @@ class _RankingScreenState extends State<RankingScreen> {
       final Map<String, dynamic> jsonData = json.decode(jsonString);
       final UsersDataResponse response = UsersDataResponse.fromJson(jsonData);
       
-      // 获取被隐藏的视频列表
+      // Get hidden videos list
       final prefs = await SharedPreferences.getInstance();
       final hiddenVideosJson = prefs.getString('hidden_videos');
       List<String> hiddenVideos = [];
@@ -38,7 +40,7 @@ class _RankingScreenState extends State<RankingScreen> {
         hiddenVideos = List<String>.from(json.decode(hiddenVideosJson));
       }
       
-      // 获取点赞数据
+      // Get like data
       final likedUsersJson = prefs.getString('liked_users');
       final likeCountsJson = prefs.getString('like_counts');
       
@@ -55,16 +57,16 @@ class _RankingScreenState extends State<RankingScreen> {
         likeCounts = countsMap.map((key, value) => MapEntry(key, value as int));
       }
       
-      // 过滤掉被隐藏的用户
+      // Filter out hidden users
       final filteredUsers = response.users
           .where((user) => !hiddenVideos.contains(user.userId))
           .toList();
       
-      // 按 experienceYears 排序
+      // Sort by experienceYears
       final sortedUsers = filteredUsers.toList()
         ..sort((a, b) => b.experienceYears.compareTo(a.experienceYears));
       
-      // 初始化点赞数据（如果用户没有本地数据，使用原始数据）
+      // Initialize like data (use original data if user has no local data)
       for (final user in sortedUsers) {
         if (!likedUsers.containsKey(user.userId)) {
           likedUsers[user.userId] = false;
@@ -87,19 +89,102 @@ class _RankingScreenState extends State<RankingScreen> {
     }
   }
 
+  Future<bool> _checkVipStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isVip = prefs.getBool('keyaIsVip') ?? false;
+    
+    if (!isVip) {
+      final expiryStr = prefs.getString('keyaVipExpiry');
+      if (expiryStr != null) {
+        final expiry = DateTime.tryParse(expiryStr);
+        if (expiry != null && expiry.isAfter(DateTime.now())) {
+          // VIP not expired
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Check if VIP is expired
+    final expiryStr = prefs.getString('keyaVipExpiry');
+    if (expiryStr != null) {
+      final expiry = DateTime.tryParse(expiryStr);
+      if (expiry != null && expiry.isBefore(DateTime.now())) {
+        // VIP expired
+        await prefs.setBool('keyaIsVip', false);
+        return false;
+      }
+    }
+    
+    return isVip;
+  }
+
+  Future<bool> _showVipRequiredDialog(String action) async {
+    final shouldGoToVip = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text(
+            'VIP Required',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            'This feature requires Keya Premium membership.\n\nGo to VIP Center to subscribe?',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Go to VIP',
+                style: TextStyle(color: AppTheme.primaryColor),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldGoToVip == true && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const VipScreen(),
+        ),
+      );
+    }
+
+    return shouldGoToVip == true;
+  }
+
   Future<void> _toggleLike(String userId) async {
+    // Check VIP status before liking
+    final isVip = await _checkVipStatus();
+    
+    if (!isVip) {
+      await _showVipRequiredDialog('like');
+      return;
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final isLiked = _likedUsers[userId] ?? false;
       final currentCount = _likeCounts[userId] ?? 0;
       
-      // 更新状态
+      // Update state
       setState(() {
         _likedUsers[userId] = !isLiked;
         _likeCounts[userId] = isLiked ? currentCount - 1 : currentCount + 1;
       });
       
-      // 保存到本地
+      // Save to local storage
       await prefs.setString('liked_users', json.encode(_likedUsers));
       await prefs.setString('like_counts', json.encode(_likeCounts));
     } catch (e) {
@@ -185,6 +270,21 @@ class _RankingScreenState extends State<RankingScreen> {
     
     return GestureDetector(
       onTap: () async {
+        // Check VIP status before opening video
+        final isVip = await _checkVipStatus();
+        
+        if (!isVip) {
+          final shouldGoToVip = await _showVipRequiredDialog('watch video');
+          if (!shouldGoToVip) {
+            return; // User cancelled, don't open video
+          }
+          // After returning from VIP screen, check again
+          final isVipAfter = await _checkVipStatus();
+          if (!isVipAfter) {
+            return; // Still not VIP, don't open video
+          }
+        }
+
         final result = await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => VideoPlayerScreen(
@@ -194,7 +294,7 @@ class _RankingScreenState extends State<RankingScreen> {
             ),
           ),
         );
-        // 如果视频被隐藏，重新加载列表
+        // Reload list if video was hidden
         if (result == true) {
           _loadUsers();
         }

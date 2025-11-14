@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_data.dart';
 import 'user_profile_screen.dart';
+import 'keya_wallet_screen.dart';
+import '../theme/app_theme.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -17,11 +20,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
   List<UserData> _remainingUsers = [];
   bool _isLoading = true;
   final PageController _pageController = PageController(viewportFraction: 0.85);
+  Set<String> _unlockedUserIds = {}; // Cache unlocked user IDs in memory
+  
+  static const int _unlockCost = 58; // Cost to unlock a user in diamonds
 
   @override
   void initState() {
     super.initState();
     _loadUsers();
+    _loadUnlockedUsers();
   }
 
   @override
@@ -56,11 +63,177 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final randomIndex = random % _allUsers.length;
     final randomUser = _allUsers[randomIndex];
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UserProfileScreen(user: randomUser),
-      ),
-    );
+    _handleUserTap(randomUser);
+  }
+
+  Future<void> _loadUnlockedUsers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final unlockedUsers = prefs.getStringList('unlockedUsers') ?? [];
+    setState(() {
+      _unlockedUserIds = unlockedUsers.toSet();
+    });
+  }
+
+  Future<int> _getKeyaDiamondsBalance() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('keyaDiamonds') ?? 0;
+  }
+
+  bool _isUserUnlocked(String userId) {
+    return _unlockedUserIds.contains(userId);
+  }
+
+  Future<void> _unlockUser(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final unlockedUsers = prefs.getStringList('unlockedUsers') ?? [];
+    if (!unlockedUsers.contains(userId)) {
+      unlockedUsers.add(userId);
+      await prefs.setStringList('unlockedUsers', unlockedUsers);
+    }
+    // Update memory cache and trigger rebuild
+    setState(() {
+      _unlockedUserIds.add(userId);
+    });
+  }
+
+  Future<bool> _consumeDiamonds(int amount) async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentBalance = prefs.getInt('keyaDiamonds') ?? 0;
+    
+    if (currentBalance >= amount) {
+      final newBalance = currentBalance - amount;
+      await prefs.setInt('keyaDiamonds', newBalance);
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _handleUserTap(UserData user) async {
+    // Check if user is already unlocked
+    final isUnlocked = _isUserUnlocked(user.userId);
+    
+    if (isUnlocked) {
+      // User is already unlocked, navigate directly
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => UserProfileScreen(user: user),
+        ),
+      );
+      return;
+    }
+
+    // Get current diamond balance
+    final balance = await _getKeyaDiamondsBalance();
+    
+    // Check if user has enough diamonds
+    if (balance >= _unlockCost) {
+      // Show confirmation dialog
+      final shouldUnlock = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: const Text(
+              'Unlock User',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Text(
+              'Unlock this user for $_unlockCost Keya Diamonds?',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text(
+                  'Unlock',
+                  style: TextStyle(color: AppTheme.primaryColor),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (shouldUnlock == true) {
+        // Consume diamonds and unlock user
+        final success = await _consumeDiamonds(_unlockCost);
+        
+        if (success) {
+          await _unlockUser(user.userId);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('User unlocked! -$_unlockCost Keya Diamonds'),
+                backgroundColor: AppTheme.primaryColor,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+          }
+          
+          // Navigate to user profile
+          if (mounted) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => UserProfileScreen(user: user),
+              ),
+            );
+          }
+        }
+      }
+    } else {
+      // Not enough diamonds, show dialog to go to wallet
+      final shouldGoToWallet = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            backgroundColor: Colors.grey[900],
+            title: const Text(
+              'Insufficient Diamonds',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Text(
+              'You need $_unlockCost Keya Diamonds to unlock this user.\n\nYour balance: $balance\nRequired: $_unlockCost\n\nGo to Wallet to recharge?',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text(
+                  'Go to Wallet',
+                  style: TextStyle(color: AppTheme.primaryColor),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (shouldGoToWallet == true && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const WalletScreen(),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -182,43 +355,67 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Widget _buildUserAvatar(UserData user) {
+    final isUnlocked = _isUserUnlocked(user.userId);
+    
     return GestureDetector(
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => UserProfileScreen(user: user),
-          ),
-        );
+        _handleUserTap(user);
       },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: const Color(0xFFEF364F),
-                width: 3,
+          Stack(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFEF364F),
+                    width: 3,
+                  ),
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    user.avatarBGPath,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey,
+                        child: const Icon(
+                          Icons.person,
+                          color: Colors.white,
+                          size: 40,
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
-            ),
-            child: ClipOval(
-              child: Image.asset(
-                user.avatarBGPath,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: Colors.grey,
-                    child: const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 40,
+              if (!isUnlocked)
+                Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 2,
+                      ),
                     ),
-                  );
-                },
-              ),
-            ),
+                    child: const Icon(
+                      Icons.lock,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 8),
           Text(
@@ -229,6 +426,36 @@ class _ExploreScreenState extends State<ExploreScreen> {
               fontWeight: FontWeight.w500,
             ),
           ),
+          if (!isUnlocked)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: Image.asset(
+                    'assets/keya_diamond.webp',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.diamond,
+                        color: Colors.amber,
+                        size: 12,
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '$_unlockCost',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -239,14 +466,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final hour = now.hour.toString().padLeft(2, '0');
     final minute = now.minute.toString().padLeft(2, '0');
     final timeStamp = '$hour:$minute';
+    final isUnlocked = _isUserUnlocked(user.userId);
 
     return GestureDetector(
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => UserProfileScreen(user: user),
-          ),
-        );
+        _handleUserTap(user);
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -265,7 +489,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // 背景图片
+              // Background image
               Image.asset(
                 user.coverPath,
                 fit: BoxFit.cover,
@@ -278,7 +502,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   );
                 },
               ),
-              // 渐变遮罩
+              // Gradient overlay
               Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -291,13 +515,42 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   ),
                 ),
               ),
-              // 内容
+              // Lock icon in top right corner
+              if (!isUnlocked)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withOpacity(0.9),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.lock,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              // Content
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 用户信息
+                    // User info
                     Row(
                       children: [
                         Container(
@@ -355,7 +608,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       ],
                     ),
                     const Spacer(),
-                    // 内容标题
+                    // Post title
                     Text(
                       user.postTitle,
                       style: const TextStyle(
@@ -366,6 +619,50 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    // Unlock price badge at bottom
+                    if (!isUnlocked) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: Image.asset(
+                                'assets/keya_diamond.webp',
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(
+                                    Icons.diamond,
+                                    color: Colors.amber,
+                                    size: 16,
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '$_unlockCost to unlock',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

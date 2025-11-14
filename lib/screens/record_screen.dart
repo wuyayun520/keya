@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../models/workout_record.dart';
+import 'keya_vip_screen.dart';
 
 class RecordScreen extends StatefulWidget {
   const RecordScreen({super.key});
@@ -80,7 +81,87 @@ class _RecordScreenState extends State<RecordScreen> {
     }
   }
 
-  void _showPublishDialog() {
+  Future<bool> _checkMonthlyVipStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isVip = prefs.getBool('keyaIsVip') ?? false;
+    
+    if (!isVip) {
+      return false;
+    }
+    
+    // Check if VIP is expired
+    final expiryStr = prefs.getString('keyaVipExpiry');
+    if (expiryStr != null) {
+      final expiry = DateTime.tryParse(expiryStr);
+      if (expiry != null && expiry.isBefore(DateTime.now())) {
+        // VIP expired
+        await prefs.setBool('keyaIsVip', false);
+        return false;
+      }
+    }
+    
+    // Check if it's monthly subscription (not weekly)
+    final vipType = prefs.getString('keyaVipType');
+    if (vipType != 'monthly') {
+      return false;
+    }
+    
+    return true;
+  }
+
+  Future<bool> _showVipRequiredDialog() async {
+    final shouldGoToVip = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text(
+            'Monthly VIP Required',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'This feature requires Keya Premium Monthly subscription.\n\nWeekly subscription is not eligible for this feature.\n\nGo to VIP Center to upgrade?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Go to VIP',
+                style: TextStyle(color: AppTheme.primaryColor),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldGoToVip == true && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const VipScreen(initialIndex: 1), // Default to monthly plan
+        ),
+      );
+    }
+
+    return shouldGoToVip == true;
+  }
+
+  Future<void> _showPublishDialog() async {
+    // Check monthly VIP status before showing dialog
+    final isMonthlyVip = await _checkMonthlyVipStatus();
+    
+    if (!isMonthlyVip) {
+      await _showVipRequiredDialog();
+      return;
+    }
     String selectedName = _workoutTypes[0]['name'] as String;
     String selectedIcon = _workoutTypes[0]['icon'] as String;
     Color selectedColor = Color(_workoutTypes[0]['color'] as int);

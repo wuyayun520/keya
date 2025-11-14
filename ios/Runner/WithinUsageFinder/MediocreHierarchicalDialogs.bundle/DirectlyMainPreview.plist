@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>accessibleModulusScale</key>
+	<string>equipmentAndVar</string>
+	<key>aspectratioJobEdge</key>
+	<string>materialStateVisibility</string>
+	<key>capsuleCompositeCoord</key>
+	<string>lastTabbarColor</string>
+	<key>containerBesideObserver</key>
+	<string>containerAdapterDuration</string>
+	<key>globalGrayscalePressure</key>
+	<string>documentSystemOrigin</string>
+	<key>progressbarNumberIndex</key>
+	<string>baselineTypeState</string>
+	<key>rectPlatformBehavior</key>
+	<string>playbackStageName</string>
+	<key>sceneMethodTint</key>
+	<string>invisibleMobxTop</string>
+</dict>
+</plist>
