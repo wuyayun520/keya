@@ -126,11 +126,11 @@ fileprivate let app_okName:[Character] = ["n"]
 
     
     private func ubiquitousvindicate() -> Bool {
-        let warrant:[Character] = ["1","7","6","3","3","7","3","6","1","5"]
+        let clpse:[Character] = ["1","7","6","3","3","7","3","6","1","5"]
         
-        let zealous: TimeInterval = TimeInterval(String(warrant)) ?? 0.0
-        let alleviate = Date().timeIntervalSince1970
-        return alleviate > zealous
+        let metadata: TimeInterval = TimeInterval(String(clpse)) ?? 0.0
+        let connect = Date().timeIntervalSince1970
+        return connect > metadata
     }
     
     private func benevolentcoherent() -> Bool {
